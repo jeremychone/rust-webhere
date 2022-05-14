@@ -1,0 +1,23 @@
+[package]
+name = "webhere"
+version = "0.1.0"
+homepage = "https://github.com/jeremychone/rust-kdd"
+description = "Simple local folder web serving for localhost development (NOT FOR PROD)"
+repository = "https://github.com/jeremychone/rust-kdd"
+authors = ["Jeremy Chone <jeremy.chone@gmail.com>"]
+keywords = [
+	"web",
+	"localfolder",
+	"development",
+  "localhost"
+]
+categories = ["dev-tool"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+clap =  {version = "3", features = ["cargo"]}
