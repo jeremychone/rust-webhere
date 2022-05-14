@@ -1,6 +1,6 @@
 [package]
 name = "webhere"
-version = "0.1.0"
+version = "0.1.1"
 homepage = "https://github.com/jeremychone/rust-kdd"
 description = "Simple local folder web serving for localhost development (NOT FOR PROD)"
 repository = "https://github.com/jeremychone/rust-kdd"
@@ -11,7 +11,7 @@ keywords = [
 	"development",
   "localhost"
 ]
-categories = ["dev-tool"]
+categories = ["development-tools"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
