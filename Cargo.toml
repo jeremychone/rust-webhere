@@ -1,9 +1,9 @@
 [package]
 name = "webhere"
-version = "0.1.1"
-homepage = "https://github.com/jeremychone/rust-kdd"
+version = "0.1.2"
+homepage = "https://github.com/jeremychone/rust-webhere"
 description = "Simple local folder web serving for localhost development (NOT FOR PROD)"
-repository = "https://github.com/jeremychone/rust-kdd"
+repository = "https://github.com/jeremychone/rust-webhere"
 authors = ["Jeremy Chone <jeremy.chone@gmail.com>"]
 keywords = [
 	"web",
