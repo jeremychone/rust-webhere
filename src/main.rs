@@ -1,70 +1,127 @@
+use pathdiff::diff_paths;
+use std::format as f;
 use std::fs;
-use std::path::Path;
-
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use warp::log::Info;
 use warp::path::FullPath;
 use warp::reply::Html;
 use warp::Filter;
 
+use crate::tmpl::{HTML_DIR_LIST_END, HTML_DIR_LIST_START};
+
 use crate::cmd::cmd_app;
+use crate::xts::AsString;
 
 mod cmd;
+mod tmpl;
+mod xts;
 
 const DEFAULT_PORT: u16 = 8080;
-const WEB_FOLDER: &str = "./";
+const DEFAULT_WEB_FOLDER: &str = "./";
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let app = cmd_app().get_matches();
 
-	let port = app.value_of("port").and_then(|val| val.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
+	// --- Get the port
+	let port = app
+		.value_of("port")
+		.and_then(|val| val.parse::<u16>().ok())
+		.unwrap_or(DEFAULT_PORT);
 
-	let content = warp::fs::dir(WEB_FOLDER);
-	let root = warp::get()
-		.and(warp::path::end())
-		.and(warp::fs::file(format!("{}/index.html", WEB_FOLDER)));
-	let static_site = content.or(root).or(folder_content_filter());
+	// --- Get the root directory path
+	let root_dir = app
+		.value_of("dir")
+		.map(|v| v.to_owned())
+		.unwrap_or_else(|| DEFAULT_WEB_FOLDER.to_owned());
+	println!("->> DIR PATH >>> {}", root_dir);
 
-	let routes = static_site.with(warp::log::custom(log_req));
+	let root_dir = Path::new(&root_dir).to_path_buf();
+	let root_dir = Arc::new(root_dir);
 
-	println!("starting server at http://localhost:{}/", port);
+	let special_filter = with_path_type(root_dir.clone()).and_then(special_file_handler);
+
+	let warp_dir_filter = warp::fs::dir(root_dir.to_path_buf());
+
+	let routes = special_filter.or(warp_dir_filter);
+
+	// add the log
+	let routes = routes.with(warp::log::custom(log_req));
+
+	println!("Starting server at http://localhost:{}/", port);
 
 	warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 
 	Ok(())
 }
 
-pub fn folder_content_filter() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-	warp::any().and(warp::path::full()).and_then(folder_content_handler)
+struct PathInfo {
+	root_dir: Arc<PathBuf>,
+	target_path: PathBuf,
+}
+enum SpecialPath {
+	Dir(PathInfo),
+	ExtLessFile(PathInfo),
+	NotSpecial,
 }
 
-async fn folder_content_handler(full_path: FullPath) -> Result<Html<String>, warp::Rejection> {
-	// IMPORTANT - trim all start '/' to make sure all is relatively to './'
-	let uri = full_path.as_str().trim_start_matches('/');
+fn with_path_type(root_dir: Arc<PathBuf>) -> impl Filter<Extract = (SpecialPath,), Error = std::convert::Infallible> + Clone {
+	warp::any().and(warp::path::full()).map(move |full_path: FullPath| {
+		let web_path = full_path.as_str().trim_start_matches('/');
+		let target_path = root_dir.join(web_path);
 
-	let root_path = Path::new(WEB_FOLDER).to_path_buf();
-	let dir_path = root_path.join(uri);
+		let path_info = PathInfo {
+			root_dir: root_dir.clone(),
+			target_path: target_path,
+		};
 
-	let mut html = String::new();
-
-	let paths = fs::read_dir(&dir_path);
-
-	match paths {
-		Ok(paths) => {
-			for path in paths.into_iter() {
-				if let Some(path) = path.ok().and_then(|v| v.path().to_str().map(|s| s.to_string())) {
-					let uri = &path[WEB_FOLDER.len()..];
-					let href = format!("/{}", uri);
-					html.push_str(&format!(r#"<a href="{}">{}</a><br />"#, href, uri));
-				}
-			}
+		if path_info.target_path.is_dir() {
+			SpecialPath::Dir(path_info)
+		} else if path_info.target_path.is_file() && path_info.target_path.extension().is_none() {
+			SpecialPath::ExtLessFile(path_info)
+		} else {
+			SpecialPath::NotSpecial
 		}
-		Err(_) => html.push_str(&format!("Cannot read dir of '{}'", dir_path.to_string_lossy())),
+	})
+}
+
+async fn special_file_handler(special_path: SpecialPath) -> Result<Html<String>, warp::Rejection> {
+	match special_path {
+		SpecialPath::Dir(path_info) => {
+			let PathInfo { root_dir, target_path } = path_info;
+			let mut html = String::new();
+
+			let paths = fs::read_dir(&target_path);
+			match paths {
+				Ok(paths) => {
+					for path in paths.into_iter() {
+						if let Some(path) = path.ok().map(|v| v.path()) {
+							if let Some(diff) = diff_paths(&path, root_dir.as_ref()).x_as_string() {
+								let disp = path.file_name().and_then(|s| s.to_str()).unwrap_or("unknown");
+								let suffix = if path.is_dir() { "/" } else { "" };
+								let href = format!("/{}", diff);
+								html.push_str(&format!(r#"<a href="{}">{}{suffix}</a>"#, href, disp));
+							}
+						}
+					}
+				}
+				Err(_) => html.push_str(&format!("Cannot read dir of '{}'", target_path.to_string_lossy())),
+			}
+
+			let html = f!("{HTML_DIR_LIST_START}{html}{HTML_DIR_LIST_END}");
+
+			Ok(warp::reply::html(html))
+		}
+		SpecialPath::ExtLessFile(path_info) => {
+			// FIXME: Remove the unwrap
+			let html = fs::read_to_string(path_info.target_path).unwrap();
+			Ok(warp::reply::html(html))
+		}
+		// When not special, return not found in this handler, so that the default warp::dir
+		// filter can take over.
+		SpecialPath::NotSpecial => Err(warp::reject::not_found()),
 	}
-
-	let html = warp::reply::html(html);
-
-	Ok(html)
 }
 
 fn log_req(info: Info) {
@@ -73,6 +130,6 @@ fn log_req(info: Info) {
 		info.method(),
 		info.status(),
 		info.path(),
-		info.elapsed().as_micros() as f64 / 1000.0,
+		info.elapsed().as_micros() as f64 / 1000.
 	);
 }

@@ -1,6 +1,6 @@
 [package]
 name = "webhere"
-version = "0.1.2"
+version = "0.1.3-SNAPSHOT"
 homepage = "https://github.com/jeremychone/rust-webhere"
 description = "Simple local folder web serving for localhost development (NOT FOR PROD)"
 repository = "https://github.com/jeremychone/rust-webhere"
@@ -20,4 +20,6 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 warp = "0.3"
+pathdiff = "0.2"
 clap =  {version = "3", features = ["cargo"]}
+futures = "0.3"
