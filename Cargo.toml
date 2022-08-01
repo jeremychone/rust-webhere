@@ -23,3 +23,4 @@ warp = "0.3"
 pathdiff = "0.2"
 clap =  {version = "3", features = ["cargo"]}
 futures = "0.3"
+notify = "4"

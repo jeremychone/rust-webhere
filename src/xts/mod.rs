@@ -1,5 +1,5 @@
-mod x_as_string;
+mod x_string;
 
 // re-export
 
-pub use self::x_as_string::*;
+pub use self::x_string::*;
