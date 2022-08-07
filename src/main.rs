@@ -1,3 +1,7 @@
+use crate::cmd::cmd_app;
+use crate::tmpl::JS_LIVE_SCRIPT_TAG;
+use crate::tmpl::{HTML_DIR_LIST_END, HTML_DIR_LIST_START, JS_LIVE_CONTENT};
+use crate::xts::XString;
 use futures::{SinkExt, StreamExt};
 use notify::{watcher, DebouncedEvent, RecursiveMode, Watcher};
 use pathdiff::diff_paths;
@@ -6,7 +10,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tmpl::JS_LIVE_SCRIPT_TAG;
 use tokio::sync::broadcast;
 use warp::hyper::Response;
 use warp::log::Info;
@@ -14,11 +17,6 @@ use warp::path::FullPath;
 use warp::reply::Html;
 use warp::ws::{Message, WebSocket};
 use warp::Filter;
-
-use crate::tmpl::{HTML_DIR_LIST_END, HTML_DIR_LIST_START, JS_LIVE_CONTENT};
-
-use crate::cmd::cmd_app;
-use crate::xts::XString;
 
 mod cmd;
 mod tmpl;
@@ -115,7 +113,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		println!("\tlive mode on.")
 	}
 
-	warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+	let ip = if app.contains_id("public") { [0, 0, 0, 0] } else { [127, 0, 0, 1] };
+	warp::serve(routes).run((ip, port)).await;
 
 	Ok(())
 }
